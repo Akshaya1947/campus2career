@@ -1,11 +1,20 @@
-import React, { useState } from 'react'
-import { careers } from '../data/careers'
+import React, { useState, useEffect } from 'react'
+import { careersByBranch } from '../data/careers'
 import { Nav } from '../components/Nav'
 import { Footer } from '../components/Footer'
 import { CareerDetail } from '../components/CareerDetail'
+import { useAuth } from '../context/AuthContext'
 
 export function CareersPage() {
-  const [activeCareer, setActiveCareer] = useState(careers[0])
+  const { currentUser } = useAuth()
+  const userCourse = currentUser?.course || 'CSE'
+  const [selectedCourse, setSelectedCourse] = useState(userCourse)
+  const branchCareers = careersByBranch[selectedCourse] || careersByBranch['CSE']
+  const [activeCareer, setActiveCareer] = useState(branchCareers[0])
+
+  useEffect(() => {
+    setActiveCareer(branchCareers[0])
+  }, [selectedCourse])
 
   return (
     <div className="bg-cream min-h-screen">
@@ -46,18 +55,32 @@ export function CareersPage() {
                   learning take you?
                 </h2>
               </div>
-              <p className="max-w-[370px] text-muted text-[14px] leading-[1.7] m-0 mt-[17px] md:mt-0">
-                Select a role to reveal the entry requirements and subject-by-subject preparation map.
-              </p>
+              <div className="flex flex-col items-end gap-3 max-w-[370px] mt-[17px] md:mt-0">
+                <p className="text-muted text-[14px] leading-[1.7] m-0">
+                  Select a role to reveal the entry requirements and subject-by-subject preparation map.
+                </p>
+                <div className="w-full flex items-center justify-between bg-paper border border-line rounded-md px-3 py-2 mt-2">
+                  <span className="text-sm font-semibold text-ink mr-2">Course:</span>
+                  <select 
+                    className="bg-transparent border-none outline-none text-sm text-ink cursor-pointer flex-1"
+                    value={selectedCourse}
+                    onChange={(e) => setSelectedCourse(e.target.value)}
+                  >
+                    {Object.keys(careersByBranch).map(branch => (
+                      <option key={branch} value={branch}>{branch}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-[9px] mb-[24px]">
-              {careers.map((career, index) => {
-                const isSelected = activeCareer.id === career.id
+              {branchCareers.map((career, index) => {
+                const isSelected = activeCareer.slug === career.slug
                 return (
                   <button
                     type="button"
-                    key={career.id}
+                    key={career.slug}
                     className={`border min-h-[88px] md:min-h-[108px] p-[16px] text-left font-bold text-[13px] leading-[1.35] font-sans cursor-pointer transition-all duration-220 ${
                       isSelected
                         ? 'bg-ink text-white border-ink shadow-chip-lime'

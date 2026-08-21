@@ -1,6 +1,6 @@
-// AI Study Buddy Service — sends chat messages to the Campus2Career AI backend
+// AI Study Buddy & Materials Service
 
-const API_BASE_URL = 'http://localhost:5000/api'
+import { apiClient } from './apiClient'
 
 /**
  * Send a chat message to the AI Study Buddy.
@@ -10,19 +10,36 @@ const API_BASE_URL = 'http://localhost:5000/api'
  * @returns {Promise<string>} The AI's reply text
  */
 export async function sendAIMessage(messages, context = {}) {
-  const res = await fetch(`${API_BASE_URL}/ai/chat`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ messages, context }),
-  })
+  const res = await apiClient.post('/ai/chat', { messages, context })
 
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}))
-    throw new Error(err.message || 'AI service error')
+  if (!res.success) {
+    throw new Error(res.error || 'AI service is currently unavailable.')
   }
 
-  const data = await res.json()
-  return data.reply
+  return res.reply
 }
 
-export default { sendAIMessage }
+/**
+ * Fetch educational links and LeetCode problems for a specific topic.
+ *
+ * @param {string} topicTitle
+ * @returns {Promise<Array<{ title: string, url: string }>>}
+ */
+export async function getTopicMaterials(topicTitle) {
+  const res = await apiClient.get(`/ai/materials?topic=${encodeURIComponent(topicTitle)}`)
+
+  if (res.success && Array.isArray(res.links)) {
+    return res.links
+  }
+
+  // Graceful fallback
+  return [
+    { title: `Read about ${topicTitle} on GeeksforGeeks`, url: `https://www.geeksforgeeks.org/search/?q=${encodeURIComponent(topicTitle)}` },
+    { title: `Search ${topicTitle} on LeetCode`, url: `https://leetcode.com/problemset/all/?search=${encodeURIComponent(topicTitle)}` }
+  ]
+}
+
+export default {
+  sendAIMessage,
+  getTopicMaterials,
+}

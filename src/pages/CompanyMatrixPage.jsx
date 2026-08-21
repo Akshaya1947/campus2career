@@ -2,14 +2,17 @@ import React, { useState, useEffect } from 'react'
 import { Nav } from '../components/Nav'
 import { Footer } from '../components/Footer'
 import { Link } from '../components/Link'
-import { companies } from '../data/companies'
+import { companyService } from '../services/companyService'
 import { subjects } from '../data/subjects'
+
 import { progressService } from '../services/progressService'
 import { authService } from '../services/authService'
 import { AIChatBuddy } from '../components/AIChatBuddy'
 import { CompanyLogo } from '../components/CompanyLogo'
 
 export function CompanyMatrixPage() {
+  const [companies, setCompanies] = useState([])
+  const [loadingCompanies, setLoadingCompanies] = useState(true)
   const [selectedCompanyId, setSelectedCompanyId] = useState('tcs')
   const [allProgress, setAllProgress] = useState({})
   const [loadingProgress, setLoadingProgress] = useState(true)
@@ -18,7 +21,30 @@ export function CompanyMatrixPage() {
   const [aiModalOpen, setAiModalOpen] = useState(false)
   const [currentUser, setCurrentUser] = useState(() => authService.getCurrentUser())
 
-  // Load progress across all subjects
+  // Load companies from API
+  useEffect(() => {
+    async function loadCompanies() {
+      setLoadingCompanies(true)
+      try {
+        const result = await companyService.getAllCompanies()
+        if (result.success && result.companies && result.companies.length > 0) {
+          setCompanies(result.companies)
+          if (!result.companies.find(c => c.id === selectedCompanyId)) {
+            setSelectedCompanyId(result.companies[0].id)
+          }
+        } else {
+          setCompanies([])
+        }
+      } catch (err) {
+        console.error('Error loading companies:', err)
+        setCompanies([])
+      } finally {
+        setLoadingCompanies(false)
+      }
+    }
+    loadCompanies()
+  }, [])
+
   useEffect(() => {
     async function loadData() {
       setLoadingProgress(true)
@@ -37,8 +63,47 @@ export function CompanyMatrixPage() {
 
   const selectedCompany = companies.find(c => c.id === selectedCompanyId) || companies[0]
 
+  // Show loading state if companies haven't loaded yet
+  if (loadingCompanies) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: '#f8f6f0' }}>
+        <Nav onAuthChange={(u) => setCurrentUser(u)} />
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ textAlign: 'center', color: '#666' }}>
+            <p style={{ fontSize: 18, fontWeight: 600 }}>Loading companies...</p>
+          </div>
+        </div>
+        <Footer />
+      </div>
+    )
+  }
+
+  // If no companies found, show error
+  if (!selectedCompany) {
+    return (
+      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', background: '#f8f6f0' }}>
+        <Nav onAuthChange={(u) => setCurrentUser(u)} />
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ textAlign: 'center', color: '#d32f2f', maxWidth: 500 }}>
+            <p style={{ fontSize: 18, fontWeight: 600 }}>⚠️ Unable to load companies</p>
+            <p style={{ fontSize: 14, color: '#666' }}>Please make sure the server is running at http://localhost:5000</p>
+          </div>
+        </div>
+        <Footer />
+      </div>
+    )
+  }
+
   // Calculate skill gap metrics for the selected company
-  const targetTopics = selectedCompany.targetTopics || []
+  // Support both the current API shape and companies added with the earlier
+  // admin template shape ({ slug, name, priority }).
+  const targetTopics = (selectedCompany.targetTopics || [])
+    .map(topic => ({
+      ...topic,
+      subjectSlug: topic.subjectSlug || topic.slug,
+      topicTitle: topic.topicTitle || topic.name,
+    }))
+    .filter(topic => topic.subjectSlug && topic.topicTitle)
   
   const evaluatedTopics = targetTopics.map(target => {
     const isCompleted = Boolean(allProgress[target.subjectSlug]?.[target.topicTitle])
@@ -59,24 +124,31 @@ export function CompanyMatrixPage() {
     ? Math.round((masteredTopics.length / targetTopics.length) * 100)
     : 0
 
-  // Category breakdowns (DSA, DBMS, OOPS, OS, CN)
-  const subjectBreakdowns = [
-    { slug: 'data-structures', name: 'Data Structures & Algorithms', short: 'DSA', color: '#24685e' },
-    { slug: 'database-management-system', name: 'DBMS & SQL', short: 'DBMS', color: '#a94e3a' },
-    { slug: 'object-oriented-programming', name: 'OOPs & Design', short: 'OOPS', color: '#3a5ea9' },
-    { slug: 'operating-systems', name: 'Operating Systems', short: 'OS', color: '#7e3aa9' },
-    { slug: 'computer-networks', name: 'Computer Networks', short: 'CN', color: '#2a7a2a' },
-  ].map(sub => {
-    const subTargets = evaluatedTopics.filter(t => t.subjectSlug === sub.slug)
-    const subMastered = subTargets.filter(t => t.isCompleted)
-    const pct = subTargets.length > 0 ? Math.round((subMastered.length / subTargets.length) * 100) : 0
+  // Each score comes from the student's completed Visual Roadmap topics.
+  // Company weights cap how much each subject can contribute to the placement score.
+  const technicalWeights = [
+    { key: 'dsa', slug: 'data-structures', label: 'DSA', name: 'Data Structures & Algorithms', color: '#24685e' },
+    { key: 'dbms', slug: 'database-management-system', label: 'DBMS', name: 'Database Management Systems', color: '#a94e3a' },
+    { key: 'oops', slug: 'object-oriented-programming', label: 'OOPS', name: 'Object-Oriented Programming', color: '#3a5ea9' },
+    { key: 'os', slug: 'operating-systems', label: 'OS', name: 'Operating Systems', color: '#7e3aa9' },
+    { key: 'cn', slug: 'computer-networks', label: 'CN', name: 'Computer Networks', color: '#2a7a2a' },
+  ].map(area => {
+    const subject = subjects.find(item => item.slug === area.slug)
+    const flowchartTopics = subject?.roadmap?.flatMap(phase => phase.topics) || []
+    const completed = flowchartTopics.filter(topic => allProgress[area.slug]?.[topic.title]).length
+    const total = flowchartTopics.length
+    const completionPercent = total > 0 ? Math.round((completed / total) * 100) : 0
+    const weight = Number(selectedCompany.focusWeights?.[area.key]) || 0
+
     return {
-      ...sub,
-      total: subTargets.length,
-      mastered: subMastered.length,
-      pct,
+      ...area,
+      weight,
+      completed,
+      total,
+      completionPercent,
+      weightedScore: Math.round((weight * completionPercent) / 100),
     }
-  }).filter(sub => sub.total > 0)
+  })
 
   const toggleSprintDay = (day) => {
     setSprintDone(prev => ({
@@ -218,16 +290,18 @@ export function CompanyMatrixPage() {
               >
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
                   <CompanyLogo id={comp.id} size={36} />
-                  <span style={{
-                    fontSize: 11,
-                    fontWeight: 800,
-                    padding: '3px 8px',
-                    borderRadius: 8,
-                    background: isSelected ? comp.bgSoft : '#f1efe9',
-                    color: isSelected ? comp.brandColor : '#55635e',
-                  }}>
-                    {comp.ctcRange.split('–')[1] || comp.ctcRange}
-                  </span>
+                  {comp.ctcRange?.trim() && (
+                    <span style={{
+                      fontSize: 11,
+                      fontWeight: 800,
+                      padding: '3px 8px',
+                      borderRadius: 8,
+                      background: isSelected ? comp.bgSoft : '#f1efe9',
+                      color: isSelected ? comp.brandColor : '#55635e',
+                    }}>
+                      {comp.ctcRange.split('–')[1] || comp.ctcRange}
+                    </span>
+                  )}
                 </div>
 
                 <div style={{ fontSize: 17, fontWeight: 800, color: '#132f2a', marginBottom: 2 }}>
@@ -306,7 +380,7 @@ export function CompanyMatrixPage() {
 
               {/* Hiring Tracks */}
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-                {selectedCompany.tracks.map((track, i) => (
+                {(selectedCompany.tracks || []).map((track, i) => (
                   <div key={i} style={{
                     background: selectedCompany.bgSoft,
                     border: `1px solid ${selectedCompany.accentColor}40`,
@@ -414,7 +488,7 @@ export function CompanyMatrixPage() {
           boxShadow: '0 2px 10px rgba(0,0,0,0.02)'
         }}>
           <h3 style={{ fontSize: 18, fontWeight: 800, color: '#132f2a', margin: '0 0 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span>📊</span> {selectedCompany.name} Technical Weightage & Readiness
+            <span>📊</span> {selectedCompany.name} Technical Weightage
           </h3>
 
           <div style={{
@@ -422,9 +496,9 @@ export function CompanyMatrixPage() {
             gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
             gap: 16
           }}>
-            {subjectBreakdowns.map((sub) => (
+            {technicalWeights.map((area) => (
               <div
-                key={sub.slug}
+                key={area.key}
                 style={{
                   background: '#fbfaf7',
                   border: '1px solid #e8e5dc',
@@ -433,23 +507,27 @@ export function CompanyMatrixPage() {
                 }}
               >
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                  <span style={{ fontSize: 13, fontWeight: 800, color: sub.color }}>
-                    {sub.short}
+                  <span style={{ fontSize: 13, fontWeight: 800, color: area.color }}>
+                    {area.label}
                   </span>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: sub.pct === 100 ? '#15803d' : '#60706a' }}>
-                    {sub.mastered}/{sub.total} ({sub.pct}%)
+                  <span style={{ fontSize: 12, fontWeight: 800, color: area.color }}>
+                    {area.weightedScore}% / {area.weight}%
                   </span>
                 </div>
 
                 <div style={{ fontSize: 13, fontWeight: 700, color: '#132f2a', marginBottom: 10, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                  {sub.name}
+                  {area.name}
+                </div>
+
+                <div style={{ fontSize: 11, color: '#60706a', marginBottom: 7 }}>
+                  Flowchart: {area.completed}/{area.total} topics complete ({area.completionPercent}%)
                 </div>
 
                 <div style={{ height: 6, background: '#e5e2d8', borderRadius: 3, overflow: 'hidden' }}>
                   <div style={{
                     height: '100%',
-                    width: `${sub.pct}%`,
-                    background: sub.color,
+                    width: `${area.completionPercent}%`,
+                    background: area.color,
                     borderRadius: 3,
                     transition: 'width 0.4s',
                   }} />
@@ -627,7 +705,7 @@ export function CompanyMatrixPage() {
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10, flex: 1, overflowY: 'auto', maxHeight: 520, paddingRight: 4 }}>
-              {selectedCompany.sprintPlan.map((sprint) => {
+              {(selectedCompany.sprintPlan || []).map((sprint) => {
                 const isChecked = Boolean(sprintDone[`${selectedCompany.id}_day_${sprint.day}`])
                 return (
                   <div
@@ -677,6 +755,11 @@ export function CompanyMatrixPage() {
                   </div>
                 )
               })}
+              {(selectedCompany.sprintPlan || []).length === 0 && (
+                <div style={{ textAlign: 'center', padding: '32px 16px', color: '#60706a', fontSize: 13 }}>
+                  A preparation sprint has not been added for this company yet.
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -700,9 +783,9 @@ export function CompanyMatrixPage() {
             gap: 16,
             position: 'relative'
           }}>
-            {selectedCompany.rounds.map((round) => (
+            {(selectedCompany.rounds || []).map((round, idx) => (
               <div
-                key={round.roundNumber}
+                key={round.roundNumber || idx}
                 style={{
                   background: '#fbfaf7',
                   border: '1px solid #e8e5dc',
@@ -728,10 +811,10 @@ export function CompanyMatrixPage() {
                       fontSize: 11,
                       fontWeight: 800,
                     }}>
-                      R{round.roundNumber}
+                      R{round.roundNumber || idx + 1}
                     </span>
                     <span style={{ fontSize: 11, fontWeight: 700, color: '#7c8b85', background: '#eeece6', padding: '2px 8px', borderRadius: 6 }}>
-                      {round.duration}
+                      {round.duration || '45 Mins'}
                     </span>
                   </div>
 
@@ -745,6 +828,11 @@ export function CompanyMatrixPage() {
                 </div>
               </div>
             ))}
+            {(selectedCompany.rounds || []).length === 0 && (
+              <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '30px 16px', color: '#60706a', fontSize: 13 }}>
+                Campus recruitment rounds have not been configured for this company yet.
+              </div>
+            )}
           </div>
         </div>
 

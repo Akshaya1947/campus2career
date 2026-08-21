@@ -1,9 +1,14 @@
 import React, { useState } from 'react'
-import { subjects } from '../data/subjects'
+import { subjectsByBranch } from '../data/subjects'
 import { Detail } from './Detail'
 import { Link } from './Link'
+import { useAuth } from '../context/AuthContext'
 
 export function Subjects() {
+  const { currentUser } = useAuth()
+  const userCourse = currentUser?.course || 'CSE'
+  const [selectedCourse, setSelectedCourse] = useState(userCourse)
+  const branchSubjects = subjectsByBranch[selectedCourse] || subjectsByBranch['CSE'] || []
   const [activeSubject, setActiveSubject] = useState(null)
 
   const toggle = (index) => {
@@ -11,7 +16,7 @@ export function Subjects() {
     setActiveSubject(next)
     if (next !== null) {
       setTimeout(() => {
-        document.getElementById(`subject-card-${next}`)?.scrollIntoView({
+        document.getElementById(`subject-card-${index}`)?.scrollIntoView({
           behavior: 'smooth',
           block: 'center'
         })
@@ -31,13 +36,30 @@ export function Subjects() {
               Subjects that open doors.
             </h2>
           </div>
-          <p className="max-w-[330px] m-0 text-muted text-[14px] leading-[1.6]">
-            Choose a subject to see its industry context, required skills, and career opportunities.
-          </p>
+          <div className="flex flex-col items-end gap-3 max-w-[330px]">
+            <p className="m-0 text-muted text-[14px] leading-[1.6]">
+              Choose a subject to see its industry context, required skills, and career opportunities.
+            </p>
+            <div className="w-full flex items-center justify-between bg-paper border border-line rounded-md px-3 py-2 mt-2">
+              <span className="text-sm font-semibold text-ink mr-2">Course:</span>
+              <select 
+                className="bg-transparent border-none outline-none text-sm text-ink cursor-pointer flex-1"
+                value={selectedCourse}
+                onChange={(e) => {
+                  setSelectedCourse(e.target.value)
+                  setActiveSubject(null)
+                }}
+              >
+                {Object.keys(subjectsByBranch).map(branch => (
+                  <option key={branch} value={branch}>{branch}</option>
+                ))}
+              </select>
+            </div>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {subjects.map((subject, index) => {
+          {branchSubjects.map((subject, index) => {
             const isActive = activeSubject === index
             return (
               <article

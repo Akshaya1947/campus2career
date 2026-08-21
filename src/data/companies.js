@@ -641,4 +641,64 @@ Critical Note: Always check if the returned pointer is NULL (out of memory) and 
   },
 ]
 
+export function getCompanies() {
+  if (typeof window === 'undefined') return companies
+
+  try {
+    const stored = localStorage.getItem('c2c_companies')
+    if (!stored) return companies
+    const parsed = JSON.parse(stored)
+    return Array.isArray(parsed) && parsed.length > 0 ? parsed : companies
+  } catch (error) {
+    console.error('Failed to load custom companies:', error)
+    return companies
+  }
+}
+
+export function saveCompanies(list) {
+  if (typeof window === 'undefined') return
+  localStorage.setItem('c2c_companies', JSON.stringify(list))
+}
+
+export function addCompanyToWebsite(company) {
+  const list = getCompanies()
+  const next = [company, ...list]
+  saveCompanies(next)
+  return next
+}
+
+export function removeCompanyFromWebsite(companyId) {
+  const list = getCompanies()
+  const updated = list.map(company =>
+    company.id === companyId ? { ...company, isDeleted: true } : company
+  )
+  saveCompanies(updated)
+  return updated
+}
+
+export function restoreCompanyToWebsite(companyId) {
+  const list = getCompanies()
+  const updated = list.map(company =>
+    company.id === companyId ? { ...company, isDeleted: false } : company
+  )
+  saveCompanies(updated)
+  return updated
+}
+
+export function getActiveCompanies() {
+  if (typeof window === 'undefined') return companies
+
+  try {
+    const stored = localStorage.getItem('c2c_companies')
+    if (!stored) return companies
+    const parsed = JSON.parse(stored)
+    if (!Array.isArray(parsed) || parsed.length === 0) return companies
+    // Filter out deleted companies for student view
+    return parsed.filter(c => !c.isDeleted)
+  } catch (error) {
+    console.error('Failed to load active companies:', error)
+    return companies.filter(c => !c.isDeleted)
+  }
+}
+
 export default companies

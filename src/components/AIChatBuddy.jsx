@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { sendAIMessage } from '../services/aiService'
+import { authService } from '../services/authService'
+import { AuthModal } from './AuthModal'
 import { subjects } from '../data/subjects'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -9,6 +11,15 @@ function SparkleIcon() {
     <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
       <path d="M12 2L13.5 9H21L15 13.5L17 21L12 17L7 21L9 13.5L3 9H10.5L12 2Z"
         fill="currentColor" opacity="0.9" />
+    </svg>
+  )
+}
+
+function LockIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+      <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
     </svg>
   )
 }
@@ -112,6 +123,8 @@ function MessageBubble({ message }) {
 
 export function AIChatBuddy({ subject, activePhaseName, activeTopicTitle }) {
   const [isOpen, setIsOpen] = useState(false)
+  const [currentUser, setCurrentUser] = useState(() => authService.getCurrentUser())
+  const [authModalOpen, setAuthModalOpen] = useState(false)
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -127,18 +140,31 @@ export function AIChatBuddy({ subject, activePhaseName, activeTopicTitle }) {
     topicTitle: activeTopicTitle || '',
   }
 
+  // Keep auth state synchronized across all tabs and events
+  useEffect(() => {
+    const handleAuthChange = () => {
+      setCurrentUser(authService.getCurrentUser())
+    }
+    window.addEventListener('storage', handleAuthChange)
+    window.addEventListener('auth_state_changed', handleAuthChange)
+    return () => {
+      window.removeEventListener('storage', handleAuthChange)
+      window.removeEventListener('auth_state_changed', handleAuthChange)
+    }
+  }, [])
+
   // Auto-scroll to bottom on new messages
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && currentUser) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
     }
-  }, [messages, isLoading, isOpen])
+  }, [messages, isLoading, isOpen, currentUser])
 
   // Handle click outside to close
   useEffect(() => {
     function handleClickOutside(event) {
       if (isOpen && chatPanelRef.current && !chatPanelRef.current.contains(event.target)) {
-        if (!event.target.closest('#chat-toggle-btn')) {
+        if (!event.target.closest('#chat-toggle-btn') && !event.target.closest('.auth-modal-content')) {
           setIsOpen(false)
         }
       }
@@ -147,21 +173,33 @@ export function AIChatBuddy({ subject, activePhaseName, activeTopicTitle }) {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [isOpen])
 
-  // Focus input when panel opens
+  // Immediate auth refresh & focus input or greet when panel opens
   useEffect(() => {
     if (isOpen) {
-      setTimeout(() => inputRef.current?.focus(), 200)
-      // Send a greeting on first open
-      if (!hasGreeted) {
-        setHasGreeted(true)
-        const greeting = {
-          role: 'assistant',
-          content: `Hey there! 👋 I'm your AI Study Buddy for **${subject?.name || 'this subject'}**.\n\nI can explain concepts, quiz you, give real-world examples, or answer any questions you have. What would you like help with?`,
+      const activeUser = authService.getCurrentUser()
+      setCurrentUser(activeUser)
+      
+      if (activeUser) {
+        setTimeout(() => inputRef.current?.focus(), 200)
+        // Send a personalized greeting on first open
+        if (!hasGreeted) {
+          setHasGreeted(true)
+          const userName = activeUser?.name ? activeUser.name.split(' ')[0] : 'there'
+          const greeting = {
+            role: 'assistant',
+            content: `Hey ${userName}! 👋 I'm your AI Study Buddy for **${subject?.name || 'this subject'}**.\n\nI can explain concepts, quiz you, give real-world examples, or answer any questions you have. What would you like help with?`,
+          }
+          setMessages([greeting])
         }
-        setMessages([greeting])
       }
     }
-  }, [isOpen])
+  }, [isOpen, hasGreeted, subject?.name])
+
+  const handleAuthSuccess = (user) => {
+    setCurrentUser(user)
+    setAuthModalOpen(false)
+    window.dispatchEvent(new Event('auth_state_changed'))
+  }
 
   const sendMessage = async (text) => {
     if (!text.trim() || isLoading) return
@@ -234,7 +272,10 @@ export function AIChatBuddy({ subject, activePhaseName, activeTopicTitle }) {
       {!isOpen && (
         <button
           id="chat-toggle-btn"
-          onClick={() => setIsOpen(true)}
+          onClick={() => {
+            setCurrentUser(authService.getCurrentUser())
+            setIsOpen(true)
+          }}
           title="AI Study Buddy"
           style={{
             position: 'fixed',
@@ -268,10 +309,11 @@ export function AIChatBuddy({ subject, activePhaseName, activeTopicTitle }) {
           ref={chatPanelRef}
           style={{
             position: 'fixed',
-            bottom: '100px',
-            right: '28px',
+            bottom: '96px',
+            right: '16px',
             width: '380px',
-            height: '540px',
+            maxWidth: 'calc(100vw - 32px)',
+            height: 'min(540px, calc(100vh - 120px))',
             borderRadius: '20px',
             background: 'rgba(8, 24, 20, 0.97)',
             backdropFilter: 'blur(20px)',
@@ -301,7 +343,9 @@ export function AIChatBuddy({ subject, activePhaseName, activeTopicTitle }) {
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: '17px', flexShrink: 0,
               boxShadow: '0 4px 12px rgba(215,255,117,0.3)',
-            }}>✨</div>
+            }}>
+              {currentUser ? '✨' : '🔒'}
+            </div>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ color: '#fff', fontWeight: 700, fontSize: '14px', lineHeight: 1.2 }}>
                 AI Study Buddy
@@ -310,13 +354,18 @@ export function AIChatBuddy({ subject, activePhaseName, activeTopicTitle }) {
                 fontSize: '11px', color: '#d7ff75', fontFamily: 'monospace',
                 textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap',
               }}>
-                {subject?.name || 'Computer Science'}
+                {currentUser ? (subject?.name || 'Computer Science') : 'Member Access Required'}
               </div>
             </div>
-            {/* Live indicator */}
+            {/* Live indicator / Locked indicator */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '5px', paddingRight: '20px' }}>
-              <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#d7ff75' }} />
-              <span style={{ fontSize: '10px', color: '#7a9e94', fontFamily: 'monospace' }}>online</span>
+              <div style={{
+                width: 7, height: 7, borderRadius: '50%',
+                background: currentUser ? '#d7ff75' : '#ffc940',
+              }} />
+              <span style={{ fontSize: '10px', color: currentUser ? '#7a9e94' : '#ffc940', fontFamily: 'monospace' }}>
+                {currentUser ? 'online' : 'locked'}
+              </span>
             </div>
             
             {/* Close Button */}
@@ -351,192 +400,294 @@ export function AIChatBuddy({ subject, activePhaseName, activeTopicTitle }) {
             </button>
           </div>
 
-          {/* Context pill */}
-          {(activePhaseName || activeTopicTitle) && (
+          {!currentUser ? (
+            /* ── Locked / Login Gate Screen ── */
             <div style={{
-              padding: '8px 14px',
-              background: 'rgba(36,104,94,0.15)',
-              borderBottom: '1px solid rgba(255,255,255,0.05)',
-              flexShrink: 0,
-            }}>
-              <span style={{
-                fontSize: '11px', color: '#7a9e94', fontFamily: 'monospace',
-              }}>
-                📍 {[activePhaseName, activeTopicTitle].filter(Boolean).join(' › ')}
-              </span>
-            </div>
-          )}
-
-          {/* Messages Area */}
-          <div style={{
-            flex: 1,
-            overflowY: 'auto',
-            padding: '16px 14px',
-            scrollbarWidth: 'thin',
-            scrollbarColor: 'rgba(255,255,255,0.1) transparent',
-          }}>
-            {messages.length === 0 && (
-              <div style={{
-                textAlign: 'center', color: '#405650', fontSize: '13px',
-                padding: '40px 20px', animation: 'aiBuddy_fadeIn 0.4s',
-              }}>
-                <div style={{ fontSize: '40px', marginBottom: '12px' }}>✨</div>
-                <div>Ask me anything about <strong style={{ color: '#7a9e94' }}>{subject?.name}</strong>!</div>
-              </div>
-            )}
-
-            {messages.map((msg, i) => (
-              <div key={i} style={{ animation: 'aiBuddy_fadeIn 0.3s' }}>
-                <MessageBubble message={msg} />
-              </div>
-            ))}
-
-            {isLoading && (
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginBottom: '12px', animation: 'aiBuddy_fadeIn 0.3s' }}>
-                <div style={{
-                  width: 28, height: 28, borderRadius: '50%',
-                  background: 'linear-gradient(135deg, #24685e, #d7ff75)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: '13px', flexShrink: 0,
-                }}>✨</div>
-                <div style={{
-                  padding: '10px 14px',
-                  borderRadius: '18px 18px 18px 4px',
-                  background: 'rgba(255,255,255,0.08)',
-                  border: '1px solid rgba(255,255,255,0.1)',
-                }}>
-                  <TypingDots />
-                </div>
-              </div>
-            )}
-            <div ref={messagesEndRef} />
-          </div>
-
-          {/* Quick Prompts (shown only when chat is empty or just greeting) */}
-          {messages.length <= 1 && !isLoading && (
-            <div style={{
-              padding: '8px 12px',
-              borderTop: '1px solid rgba(255,255,255,0.06)',
+              flex: 1,
               display: 'flex',
-              flexWrap: 'wrap',
-              gap: '6px',
-              flexShrink: 0,
-              animation: 'aiBuddy_fadeIn 0.4s',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '24px 20px',
+              textAlign: 'center',
+              background: 'radial-gradient(circle at 50% 30%, rgba(36,104,94,0.2), transparent 70%)',
             }}>
-              {QUICK_PROMPTS.map(chip => (
-                <button
-                  key={chip.label}
-                  onClick={() => sendMessage(chip.text)}
-                  style={{
-                    padding: '5px 10px',
-                    background: 'rgba(36,104,94,0.2)',
-                    border: '1px solid rgba(215,255,117,0.15)',
-                    borderRadius: '20px',
-                    color: '#b8d4cf',
-                    fontSize: '11px',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                    transition: 'all 0.15s',
-                    fontFamily: 'inherit',
-                  }}
-                  onMouseEnter={e => {
-                    e.currentTarget.style.background = 'rgba(36,104,94,0.5)'
-                    e.currentTarget.style.color = '#d7ff75'
-                    e.currentTarget.style.borderColor = 'rgba(215,255,117,0.4)'
-                  }}
-                  onMouseLeave={e => {
-                    e.currentTarget.style.background = 'rgba(36,104,94,0.2)'
-                    e.currentTarget.style.color = '#b8d4cf'
-                    e.currentTarget.style.borderColor = 'rgba(215,255,117,0.15)'
-                  }}
-                >
-                  {chip.label}
-                </button>
-              ))}
-            </div>
-          )}
-
-          {/* Input Area */}
-          <div style={{
-            padding: '12px 14px',
-            borderTop: '1px solid rgba(255,255,255,0.08)',
-            display: 'flex',
-            gap: '8px',
-            alignItems: 'flex-end',
-            background: 'rgba(0,0,0,0.2)',
-            flexShrink: 0,
-          }}>
-            <textarea
-              ref={inputRef}
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Ask anything about this topic..."
-              rows={1}
-              disabled={isLoading}
-              style={{
-                flex: 1,
-                background: 'rgba(255,255,255,0.07)',
-                border: '1px solid rgba(255,255,255,0.12)',
-                borderRadius: '12px',
-                padding: '10px 14px',
-                color: '#fff',
-                fontSize: '13px',
-                lineHeight: 1.5,
-                outline: 'none',
-                resize: 'none',
-                fontFamily: 'inherit',
-                maxHeight: '96px',
-                overflowY: 'auto',
-                scrollbarWidth: 'none',
-                transition: 'border-color 0.2s',
-              }}
-              onFocus={e => { e.target.style.borderColor = 'rgba(215,255,117,0.4)' }}
-              onBlur={e => { e.target.style.borderColor = 'rgba(255,255,255,0.12)' }}
-            />
-            <button
-              onClick={() => sendMessage(input)}
-              disabled={isLoading || !input.trim()}
-              style={{
-                width: '40px',
-                height: '40px',
-                borderRadius: '12px',
-                background: input.trim() && !isLoading
-                  ? 'linear-gradient(135deg, #24685e, #d7ff75)'
-                  : 'rgba(255,255,255,0.07)',
-                border: 'none',
-                cursor: input.trim() && !isLoading ? 'pointer' : 'not-allowed',
-                color: input.trim() && !isLoading ? '#132f2a' : '#405650',
+              <div style={{
+                width: '64px',
+                height: '64px',
+                borderRadius: '50%',
+                background: 'linear-gradient(135deg, rgba(36,104,94,0.6), rgba(215,255,117,0.2))',
+                border: '1px solid rgba(215,255,117,0.3)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                transition: 'all 0.2s',
-                flexShrink: 0,
-              }}
-              onMouseEnter={e => {
-                if (input.trim() && !isLoading) e.currentTarget.style.transform = 'scale(1.08)'
-              }}
-              onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)' }}
-            >
-              <SendIcon />
-            </button>
-          </div>
+                fontSize: '28px',
+                marginBottom: '16px',
+                boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+              }}>
+                🔒
+              </div>
 
-          {/* Footer note */}
-          <div style={{
-            padding: '6px 14px 10px',
-            textAlign: 'center',
-            fontSize: '10px',
-            color: '#2a4a44',
-            fontFamily: 'monospace',
-            flexShrink: 0,
-          }}>
-            Powered by Google Gemini · Campus2Career
-          </div>
+              <h4 style={{ color: '#fff', fontSize: '17px', fontWeight: 800, margin: '0 0 8px' }}>
+                Sign In to Access AI Study Buddy
+              </h4>
+
+              <p style={{ color: '#a0b8b2', fontSize: '13px', lineHeight: 1.5, margin: '0 0 20px', maxWidth: '300px' }}>
+                The AI Study Buddy is an interactive tutor for enrolled students. Log in to ask questions, test your knowledge with quizzes, and get step-by-step guidance.
+              </p>
+
+              {/* Feature Highlights */}
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px',
+                width: '100%',
+                maxWidth: '300px',
+                marginBottom: '24px',
+                textAlign: 'left',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#d7ff75' }}>
+                  <span>⚡</span> <span style={{ color: '#e0ece9' }}>Instant Topic Explanations</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#d7ff75' }}>
+                  <span>🧪</span> <span style={{ color: '#e0ece9' }}>Interactive Quizzes & Feedback</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', color: '#d7ff75' }}>
+                  <span>💡</span> <span style={{ color: '#e0ece9' }}>Personalized Roadmap Advice</span>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setAuthModalOpen(true)}
+                style={{
+                  width: '100%',
+                  maxWidth: '300px',
+                  padding: '12px 20px',
+                  borderRadius: '12px',
+                  background: 'linear-gradient(135deg, #24685e, #d7ff75)',
+                  color: '#132f2a',
+                  border: 'none',
+                  fontSize: '14px',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  boxShadow: '0 4px 16px rgba(215,255,117,0.25)',
+                  transition: 'all 0.2s ease',
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.transform = 'scale(1.02)'
+                  e.currentTarget.style.boxShadow = '0 6px 20px rgba(215,255,117,0.4)'
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.transform = 'scale(1)'
+                  e.currentTarget.style.boxShadow = '0 4px 16px rgba(215,255,117,0.25)'
+                }}
+              >
+                <LockIcon /> Log In / Register Free
+              </button>
+            </div>
+          ) : (
+            /* ── Active Authenticated Chat Experience ── */
+            <>
+              {/* Context pill */}
+              {(activePhaseName || activeTopicTitle) && (
+                <div style={{
+                  padding: '8px 14px',
+                  background: 'rgba(36,104,94,0.15)',
+                  borderBottom: '1px solid rgba(255,255,255,0.05)',
+                  flexShrink: 0,
+                }}>
+                  <span style={{
+                    fontSize: '11px', color: '#7a9e94', fontFamily: 'monospace',
+                  }}>
+                    📍 {[activePhaseName, activeTopicTitle].filter(Boolean).join(' › ')}
+                  </span>
+                </div>
+              )}
+
+              {/* Messages Area */}
+              <div style={{
+                flex: 1,
+                overflowY: 'auto',
+                padding: '16px 14px',
+                scrollbarWidth: 'thin',
+                scrollbarColor: 'rgba(255,255,255,0.1) transparent',
+              }}>
+                {messages.length === 0 && (
+                  <div style={{
+                    textAlign: 'center', color: '#405650', fontSize: '13px',
+                    padding: '40px 20px', animation: 'aiBuddy_fadeIn 0.4s',
+                  }}>
+                    <div style={{ fontSize: '40px', marginBottom: '12px' }}>✨</div>
+                    <div>Ask me anything about <strong style={{ color: '#7a9e94' }}>{subject?.name || 'Computer Science'}</strong>!</div>
+                  </div>
+                )}
+
+                {messages.map((msg, i) => (
+                  <div key={i} style={{ animation: 'aiBuddy_fadeIn 0.3s' }}>
+                    <MessageBubble message={msg} />
+                  </div>
+                ))}
+
+                {isLoading && (
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginBottom: '12px', animation: 'aiBuddy_fadeIn 0.3s' }}>
+                    <div style={{
+                      width: 28, height: 28, borderRadius: '50%',
+                      background: 'linear-gradient(135deg, #24685e, #d7ff75)',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      fontSize: '13px', flexShrink: 0,
+                    }}>✨</div>
+                    <div style={{
+                      padding: '10px 14px',
+                      borderRadius: '18px 18px 18px 4px',
+                      background: 'rgba(255,255,255,0.08)',
+                      border: '1px solid rgba(255,255,255,0.1)',
+                    }}>
+                      <TypingDots />
+                    </div>
+                  </div>
+                )}
+                <div ref={messagesEndRef} />
+              </div>
+
+              {/* Quick Prompts (shown only when chat is empty or just greeting) */}
+              {messages.length <= 1 && !isLoading && (
+                <div style={{
+                  padding: '8px 12px',
+                  borderTop: '1px solid rgba(255,255,255,0.06)',
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: '6px',
+                  flexShrink: 0,
+                  animation: 'aiBuddy_fadeIn 0.4s',
+                }}>
+                  {QUICK_PROMPTS.map(chip => (
+                    <button
+                      key={chip.label}
+                      onClick={() => sendMessage(chip.text)}
+                      style={{
+                        padding: '5px 10px',
+                        background: 'rgba(36,104,94,0.2)',
+                        border: '1px solid rgba(215,255,117,0.15)',
+                        borderRadius: '20px',
+                        color: '#b8d4cf',
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        transition: 'all 0.15s',
+                        fontFamily: 'inherit',
+                      }}
+                      onMouseEnter={e => {
+                        e.currentTarget.style.background = 'rgba(36,104,94,0.5)'
+                        e.currentTarget.style.color = '#d7ff75'
+                        e.currentTarget.style.borderColor = 'rgba(215,255,117,0.4)'
+                      }}
+                      onMouseLeave={e => {
+                        e.currentTarget.style.background = 'rgba(36,104,94,0.2)'
+                        e.currentTarget.style.color = '#b8d4cf'
+                        e.currentTarget.style.borderColor = 'rgba(215,255,117,0.15)'
+                      }}
+                    >
+                      {chip.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Input Area */}
+              <div style={{
+                padding: '12px 14px',
+                borderTop: '1px solid rgba(255,255,255,0.08)',
+                display: 'flex',
+                gap: '8px',
+                alignItems: 'flex-end',
+                background: 'rgba(0,0,0,0.2)',
+                flexShrink: 0,
+              }}>
+                <textarea
+                  ref={inputRef}
+                  value={input}
+                  onChange={e => setInput(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Ask anything about this topic..."
+                  rows={1}
+                  disabled={isLoading}
+                  style={{
+                    flex: 1,
+                    background: 'rgba(255,255,255,0.07)',
+                    border: '1px solid rgba(255,255,255,0.12)',
+                    borderRadius: '12px',
+                    padding: '10px 14px',
+                    color: '#fff',
+                    fontSize: '13px',
+                    lineHeight: 1.5,
+                    outline: 'none',
+                    resize: 'none',
+                    fontFamily: 'inherit',
+                    maxHeight: '96px',
+                    overflowY: 'auto',
+                    scrollbarWidth: 'none',
+                    transition: 'border-color 0.2s',
+                  }}
+                  onFocus={e => { e.target.style.borderColor = 'rgba(215,255,117,0.4)' }}
+                  onBlur={e => { e.target.style.borderColor = 'rgba(255,255,255,0.12)' }}
+                />
+                <button
+                  onClick={() => sendMessage(input)}
+                  disabled={isLoading || !input.trim()}
+                  style={{
+                    width: '40px',
+                    height: '40px',
+                    borderRadius: '12px',
+                    background: input.trim() && !isLoading
+                      ? 'linear-gradient(135deg, #24685e, #d7ff75)'
+                      : 'rgba(255,255,255,0.07)',
+                    border: 'none',
+                    cursor: input.trim() && !isLoading ? 'pointer' : 'not-allowed',
+                    color: input.trim() && !isLoading ? '#132f2a' : '#405650',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'all 0.2s',
+                    flexShrink: 0,
+                  }}
+                  onMouseEnter={e => {
+                    if (input.trim() && !isLoading) e.currentTarget.style.transform = 'scale(1.08)'
+                  }}
+                  onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)' }}
+                >
+                  <SendIcon />
+                </button>
+              </div>
+
+              {/* Footer note */}
+              <div style={{
+                padding: '6px 14px 10px',
+                textAlign: 'center',
+                fontSize: '10px',
+                color: '#2a4a44',
+                fontFamily: 'monospace',
+                flexShrink: 0,
+              }}>
+                Logged in as {currentUser.name || currentUser.email} · AI Study Buddy
+              </div>
+            </>
+          )}
         </div>
       )}
+
+      {/* Auth Modal for Login / Registration */}
+      <AuthModal
+        isOpen={authModalOpen}
+        onClose={() => setAuthModalOpen(false)}
+        onAuthSuccess={handleAuthSuccess}
+      />
     </>
   )
 }
 
 export default AIChatBuddy
+

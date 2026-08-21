@@ -1,8 +1,7 @@
-// Progress Service — saves & loads topic completion via MongoDB API with localStorage fallback
+// Progress Service — saves & loads topic completion via API with localStorage caching
 
+import { apiClient } from './apiClient'
 import { authService } from './authService'
-
-const API_BASE_URL = 'http://localhost:5000/api'
 
 function getLocalKey(subjectSlug, user) {
   if (!user) return null
@@ -16,28 +15,15 @@ export const progressService = {
    * completedTopicsObj: { [topicTitle]: boolean }
    */
   async saveProgress(subjectSlug, completedTopicsObj) {
-    const token = authService.getToken()
     const user = authService.getCurrentUser()
-    // Convert object to array of completed topic titles
     const completedTopics = Object.keys(completedTopicsObj).filter(k => completedTopicsObj[k])
 
-    // Save to MongoDB if authenticated
-    if (token) {
-      try {
-        await fetch(`${API_BASE_URL}/progress/${subjectSlug}`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ completedTopics }),
-        })
-      } catch {
-        // Network error — still save to localStorage below
-      }
+    // Save to API if authenticated
+    if (authService.isAuthenticated()) {
+      await apiClient.post(`/progress/${subjectSlug}`, { completedTopics })
     }
 
-    // Always save to localStorage as a fallback / offline cache
+    // Always update local cache for instant offline responsiveness
     const localKey = getLocalKey(subjectSlug, user)
     if (localKey) {
       try {
@@ -53,29 +39,20 @@ export const progressService = {
    * Returns: { [topicTitle]: boolean }
    */
   async loadProgress(subjectSlug) {
-    const token = authService.getToken()
     const user = authService.getCurrentUser()
 
-    // Try fetching from MongoDB first
-    if (token) {
-      try {
-        const res = await fetch(`${API_BASE_URL}/progress/${subjectSlug}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        })
-        if (res.ok) {
-          const data = await res.json()
-          // Convert array → object
-          const obj = {}
-          ;(data.completedTopics || []).forEach(t => { obj[t] = true })
-          // Sync result back to localStorage for offline use
-          const localKey = getLocalKey(subjectSlug, user)
-          if (localKey) {
-            try { localStorage.setItem(localKey, JSON.stringify(obj)) } catch { /* ignore */ }
-          }
-          return obj
+    // Try fetching from API first if authenticated
+    if (authService.isAuthenticated()) {
+      const res = await apiClient.get(`/progress/${subjectSlug}`)
+      if (res.success && res.completedTopics) {
+        const obj = {}
+        res.completedTopics.forEach(t => { obj[t] = true })
+        
+        const localKey = getLocalKey(subjectSlug, user)
+        if (localKey) {
+          try { localStorage.setItem(localKey, JSON.stringify(obj)) } catch { /* ignore */ }
         }
-      } catch {
-        // Fallback below
+        return obj
       }
     }
 
@@ -96,27 +73,18 @@ export const progressService = {
    * Returns: { [subjectSlug]: { [topicTitle]: boolean } }
    */
   async loadAllProgress(slugs = []) {
-    const token = authService.getToken()
     const user = authService.getCurrentUser()
 
-    // Try MongoDB — returns all subjects in one request
-    if (token) {
-      try {
-        const res = await fetch(`${API_BASE_URL}/progress`, {
-          headers: { Authorization: `Bearer ${token}` },
+    // Try API — returns all subjects in one request
+    if (authService.isAuthenticated()) {
+      const res = await apiClient.get('/progress')
+      if (res.success && res.progress) {
+        const result = {}
+        Object.entries(res.progress).forEach(([slug, topics]) => {
+          result[slug] = {}
+          ;(topics || []).forEach(t => { result[slug][t] = true })
         })
-        if (res.ok) {
-          const data = await res.json()
-          // Convert { slug: [titles] } → { slug: { title: bool } }
-          const result = {}
-          Object.entries(data.progress || {}).forEach(([slug, topics]) => {
-            result[slug] = {}
-            topics.forEach(t => { result[slug][t] = true })
-          })
-          return result
-        }
-      } catch {
-        // Fallback below
+        return result
       }
     }
 

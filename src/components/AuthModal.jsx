@@ -3,7 +3,7 @@ import { authService } from '../services/authService'
 
 export function AuthModal({ isOpen, onClose, onAuthSuccess }) {
   const [mode, setMode] = useState('login') // 'login' or 'register'
-  const [formData, setFormData] = useState({ name: '', email: '', password: '' })
+  const [formData, setFormData] = useState({ name: '', email: '', password: '', course: 'CSE' })
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState('')
@@ -26,9 +26,20 @@ export function AuthModal({ isOpen, onClose, onAuthSuccess }) {
       return
     }
 
-    if (mode === 'register' && !formData.name) {
-      setErrorMsg('Please enter your full name.')
-      return
+    if (mode === 'register') {
+      if (!formData.name) {
+        setErrorMsg('Please enter your full name.')
+        return
+      }
+      
+      if (!/^[a-zA-Z]/.test(formData.email)) {
+        setErrorMsg('Email must start with a letter (cannot start with a number or special character).');
+        return;
+      }
+      if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(formData.email)) {
+        setErrorMsg('Please enter a valid email address.');
+        return;
+      }
     }
 
     setLoading(true)
@@ -36,7 +47,7 @@ export function AuthModal({ isOpen, onClose, onAuthSuccess }) {
     try {
       let result
       if (mode === 'register') {
-        result = await authService.register(formData.name, formData.email, formData.password)
+        result = await authService.register(formData.name, formData.email, formData.password, formData.course)
       } else {
         result = await authService.login(formData.email, formData.password)
       }
@@ -207,6 +218,37 @@ export function AuthModal({ isOpen, onClose, onAuthSuccess }) {
                   boxSizing: 'border-box',
                 }}
               />
+            </div>
+          )}
+
+          {mode === 'register' && (
+            <div>
+              <label style={{ display: 'block', fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', color: '#132f2a', marginBottom: '6px', letterSpacing: '0.5px' }}>
+                Engineering Branch
+              </label>
+              <select
+                name="course"
+                value={formData.course}
+                onChange={handleChange}
+                style={{
+                  width: '100%',
+                  padding: '11px 14px',
+                  borderRadius: '8px',
+                  border: '1px solid #c5d3cc',
+                  fontSize: '14px',
+                  outline: 'none',
+                  boxSizing: 'border-box',
+                  background: '#fff',
+                  color: '#132f2a'
+                }}
+              >
+                <option value="CSE">Computer Science & Engineering (CSE)</option>
+                <option value="ECE">Electronics & Communication (ECE)</option>
+                <option value="EEE">Electrical & Electronics (EEE)</option>
+                <option value="ME">Mechanical Engineering (ME)</option>
+                <option value="CE">Civil Engineering (CE)</option>
+                <option value="IT">Information Technology (IT)</option>
+              </select>
             </div>
           )}
 

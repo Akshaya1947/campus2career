@@ -7,6 +7,7 @@ import { AIChatBuddy } from '../components/AIChatBuddy'
 import { AuthModal } from '../components/AuthModal'
 import { authService } from '../services/authService'
 import { progressService } from '../services/progressService'
+import { getTopicMaterials } from '../services/aiService'
 
 const TAG_COLORS = {
   'Core':      { bg: '#e8f5e2', text: '#2a7a2a', border: '#b8ddb0' },
@@ -19,6 +20,33 @@ const TAG_COLORS = {
 
 function TopicCard({ topic, globalIndex, isCompleted, onToggle }) {
   const tag = TAG_COLORS[topic.tag] || TAG_COLORS['Core']
+  const [materials, setMaterials] = useState([])
+  const [loadingMaterials, setLoadingMaterials] = useState(false)
+  const [showMaterials, setShowMaterials] = useState(false)
+
+  const handleFetchMaterials = async () => {
+    if (showMaterials) {
+      setShowMaterials(false)
+      return
+    }
+
+    if (materials.length > 0) {
+      setShowMaterials(true)
+      return
+    }
+
+    setLoadingMaterials(true)
+    setShowMaterials(true)
+    try {
+      const links = await getTopicMaterials(topic.title)
+      setMaterials(links || [])
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setLoadingMaterials(false)
+    }
+  }
+
   return (
     <div
       style={{
@@ -102,11 +130,68 @@ function TopicCard({ topic, globalIndex, isCompleted, onToggle }) {
       </div>
 
       {/* How to learn */}
-      <div>
+      <div style={{ marginBottom: '16px' }}>
         <span style={{ display: 'block', fontSize: '10px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#24685e', marginBottom: '4px' }}>
           How to practise
         </span>
         <p style={{ fontSize: '13px', color: '#405650', lineHeight: 1.6, margin: 0 }}>{topic.how}</p>
+      </div>
+
+      {/* Materials Action */}
+      <div style={{ marginTop: 'auto', paddingTop: '12px', borderTop: '1px solid #edf2ef' }}>
+        <button
+          onClick={handleFetchMaterials}
+          style={{
+            background: showMaterials ? '#24685e' : 'transparent',
+            color: showMaterials ? '#fff' : '#24685e',
+            border: '1px solid #24685e',
+            borderRadius: '6px',
+            padding: '6px 12px',
+            fontSize: '12px',
+            fontWeight: 700,
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            transition: 'all 0.2s',
+          }}
+        >
+          {loadingMaterials ? '⏳ Loading...' : showMaterials ? '▲ Hide Resources' : '📚 Find Materials'}
+        </button>
+
+        {showMaterials && (
+          <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            {materials.map((m, i) => (
+              <a
+                key={i}
+                href={m.url}
+                target="_blank"
+                rel="noreferrer"
+                style={{
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  color: '#24685e',
+                  padding: '6px 10px',
+                  background: '#f4f9f7',
+                  borderRadius: '6px',
+                  border: '1px solid #dbeae5',
+                  textDecoration: 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '8px',
+                }}
+                onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'}
+                onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}
+              >
+                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {m.title}
+                </span>
+                <span style={{ fontSize: '11px', flexShrink: 0 }}>↗</span>
+              </a>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )

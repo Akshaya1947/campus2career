@@ -39,17 +39,17 @@ function StatPill({ icon, label, value, accent }) {
       display: 'flex',
       alignItems: 'center',
       gap: '12px',
-      background: 'rgba(255,255,255,0.1)',
+      background: 'rgba(255,255,255,0.09)',
       border: '1px solid rgba(255,255,255,0.15)',
       borderRadius: '14px',
-      padding: '14px 20px',
+      padding: '12px 16px',
       backdropFilter: 'blur(8px)',
-      minWidth: '150px',
+      boxSizing: 'border-box',
     }}>
-      <span style={{ fontSize: '22px' }}>{icon}</span>
-      <div>
-        <div style={{ fontFamily: 'monospace', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '1px', color: accent, fontWeight: 700 }}>{label}</div>
-        <div style={{ fontSize: '20px', fontWeight: 800, color: '#fff', lineHeight: 1.2 }}>{value}</div>
+      <span style={{ fontSize: '22px', flexShrink: 0 }}>{icon}</span>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontFamily: 'monospace', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.5px', color: accent, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</div>
+        <div style={{ fontSize: '18px', fontWeight: 800, color: '#fff', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{value}</div>
       </div>
     </div>
   )
@@ -68,14 +68,14 @@ function SubjectCard({ subject, completedTopics, isRecommended, totalTopics }) {
       style={{
         background: '#fff',
         border: isRecommended ? '2px solid #e8622a' : '1px solid #d5dfd9',
-        borderRadius: '10px',
-        padding: '24px',
+        borderRadius: '12px',
+        padding: '22px 20px',
         display: 'flex',
         flexDirection: 'column',
         gap: '0',
         position: 'relative',
         transition: 'transform 0.2s, box-shadow 0.2s',
-        boxShadow: isRecommended ? '0 0 0 4px rgba(232,98,42,0.08)' : 'none',
+        boxShadow: isRecommended ? '0 0 0 4px rgba(232,98,42,0.08)' : '0 2px 8px rgba(0,0,0,0.02)',
       }}
       onMouseEnter={e => {
         e.currentTarget.style.transform = 'translateY(-3px)'
@@ -83,7 +83,7 @@ function SubjectCard({ subject, completedTopics, isRecommended, totalTopics }) {
       }}
       onMouseLeave={e => {
         e.currentTarget.style.transform = 'translateY(0)'
-        e.currentTarget.style.boxShadow = isRecommended ? '0 0 0 4px rgba(232,98,42,0.08)' : 'none'
+        e.currentTarget.style.boxShadow = isRecommended ? '0 0 0 4px rgba(232,98,42,0.08)' : '0 2px 8px rgba(0,0,0,0.02)'
       }}
     >
       {/* Recommended badge */}
@@ -307,7 +307,7 @@ export function Dashboard() {
         {/* ── Hero / Greeting ───────────────────────────────────────── */}
         <section style={{
           background: 'linear-gradient(135deg, #0a2520 0%, #132f2a 55%, #1f5249 100%)',
-          padding: '52px 0 60px',
+          padding: '44px 0 52px',
           position: 'relative',
           overflow: 'hidden',
         }}>
@@ -318,31 +318,31 @@ export function Dashboard() {
             right: -80, top: -120, pointerEvents: 'none',
           }} />
 
-          <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 28px', position: 'relative', zIndex: 1 }}>
+          <div className="dashboard-content-wrap">
             {/* Avatar + Greeting */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '18px', marginBottom: '28px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '24px', flexWrap: 'wrap' }}>
               <div style={{
-                width: 56, height: 56, borderRadius: '50%',
+                width: 52, height: 52, borderRadius: '50%',
                 background: 'linear-gradient(135deg, #d7ff75, #a8cc50)',
                 color: '#132f2a',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontWeight: 800, fontSize: '20px', flexShrink: 0,
+                fontWeight: 800, fontSize: '19px', flexShrink: 0,
                 boxShadow: '0 4px 16px rgba(215,255,117,0.3)',
               }}>
                 {initials}
               </div>
               <div>
-                <div style={{ fontFamily: 'monospace', fontSize: '11px', color: '#d7ff75', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px' }}>
+                <div style={{ fontFamily: 'monospace', fontSize: '11px', color: '#d7ff75', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '3px' }}>
                   Your Learning Hub
                 </div>
-                <h1 style={{ fontFamily: 'serif', fontWeight: 700, fontSize: 'clamp(28px, 5vw, 52px)', color: '#fff', letterSpacing: '-1.5px', margin: 0, lineHeight: 1.1 }}>
+                <h1 style={{ fontFamily: 'serif', fontWeight: 700, fontSize: 'clamp(26px, 4.5vw, 44px)', color: '#fff', letterSpacing: '-1.5px', margin: 0, lineHeight: 1.15 }}>
                   Welcome back, {currentUser.name?.split(' ')[0] || 'Student'}! 🎓
                 </h1>
               </div>
             </div>
 
-            {/* Stats row */}
-            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+            {/* Stats grid */}
+            <div className="dashboard-stats-grid">
               <StatPill icon="✅" label="Topics Done" value={loading ? '—' : stats.totalCompleted} accent="#d7ff75" />
               <StatPill icon="📚" label="Subjects Started" value={loading ? '—' : stats.subjectsStarted} accent="#d7ff75" />
               <StatPill icon="🏆" label="Completed" value={loading ? '—' : stats.subjectsCompleted} accent="#d7ff75" />
@@ -352,24 +352,14 @@ export function Dashboard() {
         </section>
 
         {/* ── Career Goal Selector ───────────────────────────────────── */}
-        <section style={{ padding: '40px 0 0' }}>
-          <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 28px' }}>
-            <div style={{
-              background: '#fff',
-              border: '1px solid #d5dfd9',
-              borderRadius: '12px',
-              padding: '28px 32px',
-              display: 'flex',
-              flexWrap: 'wrap',
-              alignItems: 'center',
-              gap: '20px',
-              justifyContent: 'space-between',
-            }}>
-              <div>
+        <section style={{ padding: '32px 0 0' }}>
+          <div className="dashboard-content-wrap">
+            <div className="dashboard-goal-box">
+              <div style={{ flex: 1, minWidth: '240px' }}>
                 <div style={{ fontFamily: 'monospace', fontSize: '11px', color: '#e8622a', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px' }}>
                   Personalise your roadmap
                 </div>
-                <h2 style={{ fontFamily: 'serif', fontWeight: 700, fontSize: '22px', color: '#132f2a', margin: 0, letterSpacing: '-0.5px' }}>
+                <h2 style={{ fontFamily: 'serif', fontWeight: 700, fontSize: '21px', color: '#132f2a', margin: 0, letterSpacing: '-0.5px' }}>
                   What's your career goal?
                 </h2>
                 {selectedCareer && (
@@ -378,11 +368,12 @@ export function Dashboard() {
                   </p>
                 )}
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', minWidth: '260px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', flex: 1, minWidth: '240px', maxWidth: '400px' }}>
                 <select
                   value={careerGoal}
                   onChange={handleCareerChange}
                   style={{
+                    width: '100%',
                     padding: '12px 16px',
                     border: '1px solid #d5dfd9',
                     borderRadius: '8px',
@@ -397,11 +388,12 @@ export function Dashboard() {
                     backgroundRepeat: 'no-repeat',
                     backgroundPosition: 'right 14px center',
                     paddingRight: '36px',
+                    boxSizing: 'border-box',
                   }}
                 >
-                  <option value="">— Pick a career goal —</option>
+                  <option value="" style={{ background: '#132f2a', color: '#fff' }}>— Pick a career goal —</option>
                   {careers.map(c => (
-                    <option key={c.id} value={c.id}>{c.title}</option>
+                    <option key={c.id} value={c.id} style={{ background: '#132f2a', color: '#fff' }}>{c.title}</option>
                   ))}
                 </select>
 
@@ -432,13 +424,13 @@ export function Dashboard() {
         </section>
 
         {/* ── Subjects Progress Grid ─────────────────────────────────── */}
-        <section style={{ padding: '44px 0 90px' }}>
-          <div style={{ maxWidth: 1200, margin: '0 auto', padding: '0 28px' }}>
-            <div style={{ marginBottom: '30px' }}>
-              <div style={{ fontFamily: 'monospace', fontSize: '11px', color: '#e8622a', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '6px' }}>
+        <section style={{ padding: '36px 0 80px' }}>
+          <div className="dashboard-content-wrap">
+            <div style={{ marginBottom: '24px' }}>
+              <div style={{ fontFamily: 'monospace', fontSize: '11px', color: '#e8622a', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '4px' }}>
                 All subjects
               </div>
-              <h2 style={{ fontFamily: 'serif', fontWeight: 700, fontSize: 'clamp(26px, 4vw, 42px)', color: '#132f2a', letterSpacing: '-1.5px', margin: 0, lineHeight: 1.1 }}>
+              <h2 style={{ fontFamily: 'serif', fontWeight: 700, fontSize: 'clamp(24px, 4vw, 38px)', color: '#132f2a', letterSpacing: '-1.2px', margin: 0, lineHeight: 1.15 }}>
                 {selectedCareer
                   ? <>Your path to <em style={{ color: '#e8622a', fontStyle: 'italic' }}>{selectedCareer.title.split(' ').slice(0, 3).join(' ')}</em></>
                   : 'Your progress, all subjects.'
@@ -451,7 +443,7 @@ export function Dashboard() {
                 Loading progress...
               </div>
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '18px' }}>
+              <div className="dashboard-cards-grid">
                 {/* Recommended subjects first if a career goal is set */}
                 {(selectedCareer
                   ? [
@@ -477,9 +469,46 @@ export function Dashboard() {
       <Footer />
 
       <style>{`
+        .dashboard-content-wrap {
+          max-width: 1200px;
+          margin: 0 auto;
+          padding: 0 24px;
+        }
+        .dashboard-stats-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+          gap: 12px;
+        }
+        .dashboard-goal-box {
+          background: #fff;
+          border: 1px solid #d5dfd9;
+          borderRadius: 14px;
+          padding: 24px 28px;
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 20px;
+          justify-content: space-between;
+        }
+        .dashboard-cards-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+          gap: 18px;
+        }
         @media (max-width: 767px) {
-          section > div > div[style*="grid"] {
-            grid-template-columns: 1fr !important;
+          .dashboard-content-wrap {
+            padding: 0 16px;
+          }
+          .dashboard-stats-grid {
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+          }
+          .dashboard-goal-box {
+            padding: 18px 16px;
+          }
+          .dashboard-cards-grid {
+            grid-template-columns: 1fr;
+            gap: 14px;
           }
         }
       `}</style>

@@ -1,4 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react'
+import { getTopicMaterials } from '../services/aiService'
+
 
 const TAG_STYLES = {
   'Core':      { bg: '#e8f5e2', text: '#2a7a2a', border: '#b8ddb0' },
@@ -32,9 +34,8 @@ export function VisualRoadmap({ subject, completedTopics = {}, onToggleTopic, is
     if (!activeTopic) return
     setIsLoadingMaterials(true)
     try {
-      const res = await fetch(`http://localhost:5000/api/materials?topic=${encodeURIComponent(activeTopic.title)}`)
-      const data = await res.json()
-      setMaterials(data.links || [])
+      const links = await getTopicMaterials(activeTopic.title)
+      setMaterials(links || [])
     } catch (err) {
       console.error(err)
       setMaterials([{ title: 'Error fetching materials. Please try again.', url: '#' }])
@@ -400,17 +401,90 @@ export function VisualRoadmap({ subject, completedTopics = {}, onToggleTopic, is
 
             {/* Materials List */}
             {materials.length > 0 && (
-              <div style={{ marginTop: '16px', padding: '12px', background: '#f5f9f8', borderRadius: '8px', border: '1px solid #d5dfd9' }}>
-                <h6 style={{ fontSize: '12px', fontWeight: 700, color: '#132f2a', margin: '0 0 8px' }}>Recommended Resources:</h6>
-                <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '13px', color: '#2c403b' }}>
-                  {materials.map((m, i) => (
-                    <li key={i} style={{ marginBottom: '6px' }}>
-                      <a href={m.url} target="_blank" rel="noreferrer" style={{ color: '#24685e', fontWeight: 600, textDecoration: 'none' }} onMouseEnter={e => e.currentTarget.style.textDecoration = 'underline'} onMouseLeave={e => e.currentTarget.style.textDecoration = 'none'}>
-                        {m.title}
+              <div style={{ marginTop: '20px', padding: '16px', background: '#f5f9f8', borderRadius: '10px', border: '1px solid #d5dfd9' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                  <h6 style={{ fontSize: '13px', fontWeight: 800, color: '#132f2a', margin: 0, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    📖 Verified Learning Resources & Problems
+                  </h6>
+                  <span style={{ fontSize: '11px', color: '#24685e', fontWeight: 700, background: '#e0f2ee', padding: '2px 8px', borderRadius: '12px' }}>
+                    {materials.length} resources
+                  </span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {materials.map((m, i) => {
+                    const isLeetCode = m.url && m.url.includes('leetcode.com')
+                    const isGFG = m.url && m.url.includes('geeksforgeeks.org')
+                    const isW3 = m.url && m.url.includes('w3schools.com')
+                    const isCloudflare = m.url && m.url.includes('cloudflare.com')
+                    const isMDN = m.url && m.url.includes('mozilla.org')
+                    
+                    const badgeBg = isLeetCode ? '#fff3e0' : isGFG ? '#e8f5e9' : isW3 ? '#e0f2fe' : '#f3e8fd'
+                    const badgeColor = isLeetCode ? '#e65100' : isGFG ? '#2e7d32' : isW3 ? '#0284c7' : '#6b21a8'
+                    const badgeLabel = m.platform || (isLeetCode ? 'LeetCode' : isGFG ? 'GeeksforGeeks' : isW3 ? 'W3Schools' : isCloudflare ? 'Cloudflare' : isMDN ? 'MDN' : 'Tutorial')
+
+                    return (
+                      <a
+                        key={i}
+                        href={m.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          gap: '12px',
+                          padding: '10px 14px',
+                          background: '#fff',
+                          borderRadius: '8px',
+                          border: '1px solid #e0e8e4',
+                          textDecoration: 'none',
+                          color: '#132f2a',
+                          transition: 'all 0.2s ease',
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.03)',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.borderColor = '#24685e'
+                          e.currentTarget.style.transform = 'translateY(-1px)'
+                          e.currentTarget.style.boxShadow = '0 4px 10px rgba(36, 104, 94, 0.1)'
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.borderColor = '#e0e8e4'
+                          e.currentTarget.style.transform = 'translateY(0)'
+                          e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.03)'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: 0 }}>
+                          <span style={{
+                            fontSize: '10px',
+                            fontWeight: 800,
+                            fontFamily: 'monospace',
+                            textTransform: 'uppercase',
+                            padding: '3px 8px',
+                            borderRadius: '6px',
+                            background: badgeBg,
+                            color: badgeColor,
+                            flexShrink: 0,
+                          }}>
+                            {badgeLabel}
+                          </span>
+                          <span style={{
+                            fontSize: '13px',
+                            fontWeight: 600,
+                            color: '#132f2a',
+                            whiteSpace: 'nowrap',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                          }}>
+                            {m.title}
+                          </span>
+                        </div>
+                        <span style={{ fontSize: '13px', color: '#24685e', fontWeight: 700, flexShrink: 0 }}>
+                          ↗
+                        </span>
                       </a>
-                    </li>
-                  ))}
-                </ul>
+                    )
+                  })}
+                </div>
               </div>
             )}
           </div>

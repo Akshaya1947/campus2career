@@ -10,8 +10,30 @@
   }
   body {
     @apply bg-paper text-ink font-sans m-0;
+    scrollbar-color: #24685e #e8eee9;
+    scrollbar-width: thin;
   }
   section {
     scroll-margin-top: 82px;
   }
+}
+
+/* App-wide scrollbar styling (Chromium/Safari). */
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+::-webkit-scrollbar-track {
+  background: #e8eee9;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #24685e;
+  border: 3px solid #e8eee9;
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #173d36;
 }

@@ -1,26 +1,13 @@
-// Authentication Service — validates credentials via localStorage when MongoDB is offline
+// Authentication Service — communicates with backend API and manages user session
 
-const API_BASE_URL = 'http://localhost:5000/api/auth'
-
-// Helper: get all registered demo accounts from localStorage
-function getDemoAccounts() {
-  try {
-    const stored = localStorage.getItem('c2c_accounts')
-    return stored ? JSON.parse(stored) : {}
-  } catch {
-    return {}
-  }
-}
-
-function saveDemoAccounts(accounts) {
-  localStorage.setItem('c2c_accounts', JSON.stringify(accounts))
-}
+import { apiClient } from './apiClient'
+import { STORAGE_KEYS } from '../config/api'
 
 export const authService = {
   // Get currently logged-in user from localStorage
   getCurrentUser() {
     try {
-      const stored = localStorage.getItem('c2c_user')
+      const stored = localStorage.getItem(STORAGE_KEYS.USER)
       return stored ? JSON.parse(stored) : null
     } catch {
       return null
@@ -29,108 +16,64 @@ export const authService = {
 
   // Get current JWT auth token
   getToken() {
-    return localStorage.getItem('c2c_token') || null
+    return localStorage.getItem(STORAGE_KEYS.TOKEN) || null
   },
 
-  // Register user with MongoDB backend (or fallback local validation)
-  async register(name, email, password) {
-    try {
-      const response = await fetch(`${API_BASE_URL}/register`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, password }),
-      })
+  // Register user
+  async register(name, email, password, course) {
+    const res = await apiClient.post('/auth/register', { name, email, password, course })
 
-      if (response.ok) {
-        const data = await response.json()
-        if (data.token && data.user) {
-          localStorage.setItem('c2c_token', data.token)
-          localStorage.setItem('c2c_user', JSON.stringify(data.user))
-          return { success: true, user: data.user, isMongoDB: true }
-        }
-      }
-      const errData = await response.json().catch(() => ({}))
-      if (errData.message) {
-        return { success: false, error: errData.message }
-      }
-    } catch {
-      // Backend not running — fallback to local validation
+    if (res.success && res.token && res.user) {
+      localStorage.setItem(STORAGE_KEYS.TOKEN, res.token)
+      localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(res.user))
+      window.dispatchEvent(new Event('auth_state_changed'))
+      return { success: true, user: res.user }
     }
 
-    // Local Registration with password storage
-    const accounts = getDemoAccounts()
-    const emailKey = email.toLowerCase().trim()
-
-    if (accounts[emailKey]) {
-      return { success: false, error: 'An account with this email already exists.' }
+    return {
+      success: false,
+      error: res.error || 'Registration failed. Please try again.',
     }
-
-    const user = {
-      id: 'usr_' + Date.now(),
-      name: name || 'Student',
-      email: emailKey,
-      role: 'Student',
-    }
-
-    // Store account with password for future login validation
-    accounts[emailKey] = { user, password }
-    saveDemoAccounts(accounts)
-
-    localStorage.setItem('c2c_token', 'token_' + Date.now())
-    localStorage.setItem('c2c_user', JSON.stringify(user))
-
-    return { success: true, user, isMongoDB: false }
   },
 
-  // Login user with MongoDB backend (or fallback local validation)
+  // Login user
   async login(email, password) {
-    try {
-      const response = await fetch(`${API_BASE_URL}/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
-      })
+    const res = await apiClient.post('/auth/login', { email, password })
 
-      if (response.ok) {
-        const data = await response.json()
-        if (data.token && data.user) {
-          localStorage.setItem('c2c_token', data.token)
-          localStorage.setItem('c2c_user', JSON.stringify(data.user))
-          return { success: true, user: data.user, isMongoDB: true }
-        }
-      }
-      const errData = await response.json().catch(() => ({}))
-      if (errData.message) {
-        return { success: false, error: errData.message }
-      }
-    } catch {
-      // Backend not running — fallback to local validation
+    if (res.success && res.token && res.user) {
+      localStorage.setItem(STORAGE_KEYS.TOKEN, res.token)
+      localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(res.user))
+      window.dispatchEvent(new Event('auth_state_changed'))
+      return { success: true, user: res.user }
     }
 
-    // Local Login with password validation
-    const accounts = getDemoAccounts()
-    const emailKey = email.toLowerCase().trim()
-    const account = accounts[emailKey]
-
-    if (!account) {
-      return { success: false, error: 'No account found with this email. Please register first.' }
+    return {
+      success: false,
+      error: res.error || 'Invalid email or password.',
     }
+  },
 
-    if (account.password !== password) {
-      return { success: false, error: 'Incorrect password. Please try again.' }
+  // Verify and fetch latest profile from server
+  async getProfile() {
+    const res = await apiClient.get('/auth/me')
+    if (res.success && res.user) {
+      localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(res.user))
+      window.dispatchEvent(new Event('auth_state_changed'))
+      return { success: true, user: res.user }
     }
-
-    localStorage.setItem('c2c_token', 'token_' + Date.now())
-    localStorage.setItem('c2c_user', JSON.stringify(account.user))
-
-    return { success: true, user: account.user, isMongoDB: false }
+    return { success: false, error: res.error }
   },
 
   // Logout user
   logout() {
-    localStorage.removeItem('c2c_token')
-    localStorage.removeItem('c2c_user')
+    localStorage.removeItem(STORAGE_KEYS.TOKEN)
+    localStorage.removeItem(STORAGE_KEYS.USER)
+    window.dispatchEvent(new Event('auth_state_changed'))
   },
+
+  isAuthenticated() {
+    return !!this.getToken() && !!this.getCurrentUser()
+  }
 }
 
 export default authService

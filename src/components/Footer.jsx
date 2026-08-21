@@ -11,6 +11,23 @@ export function Footer() {
             Back to top ↑
           </a>
         </span>
+        <span>
+          <a
+            href="/admin"
+            style={{
+              color: '#b0b8b5',
+              textDecoration: 'none',
+              fontSize: 11,
+              opacity: 0.6,
+              transition: 'opacity 0.2s',
+            }}
+            onMouseEnter={e => e.target.style.opacity = '1'}
+            onMouseLeave={e => e.target.style.opacity = '0.6'}
+            title="Administrator login"
+          >
+            🛡️ Admin
+          </a>
+        </span>
       </footer>
     </div>
   )

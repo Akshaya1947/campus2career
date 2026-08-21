@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react'
 import { Link } from './Link'
 import { authService } from '../services/authService'
+import { adminService } from '../services/adminService'
 import { AuthModal } from './AuthModal'
 
 const NAV_LINKS = [
   { label: 'Home', to: '/', type: 'route' },
   { label: 'Careers', to: '/careers', type: 'route' },
+  { label: 'Personalized Roadmap', to: '/personalized-roadmap', type: 'route', badge: 'AI' },
   { label: 'Placements', to: '/placements', type: 'route' },
   // { label: 'Alumni', to: '/#alumni', type: 'anchor' },
   { label: 'About', to: '/#about', type: 'anchor' },
@@ -136,6 +138,26 @@ export function Nav({ onAuthChange }) {
                 </Link>
               )}
 
+              {/* Admin Panel link — admin users only */}
+              {currentUser?.role === 'Admin' && (
+                <Link
+                  to="/admin/dashboard"
+                  style={{
+                    color: '#fff',
+                    textDecoration: 'none',
+                    fontSize: 11,
+                    fontWeight: 800,
+                    background: '#132f2a',
+                    padding: '4px 10px',
+                    borderRadius: 8,
+                    border: '1px solid rgba(215,255,117,0.3)',
+                    letterSpacing: '0.02em',
+                  }}
+                >
+                  🛡️ Admin
+                </Link>
+              )}
+
               {currentUser ? (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: '#e4eae6', padding: '4px 12px 4px 6px', borderRadius: '24px', border: '1px solid #ccd8d2' }}>
                   <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#132f2a', color: '#d7ff75', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: '12px' }}>
@@ -144,6 +166,11 @@ export function Nav({ onAuthChange }) {
                   <span style={{ fontSize: '12px', fontWeight: 700, color: '#132f2a' }}>
                     {currentUser.name || 'Student'}
                   </span>
+                  {currentUser.course && (
+                    <span style={{ fontSize: '10px', fontWeight: 800, padding: '2px 6px', borderRadius: '4px', background: '#24685e', color: '#fff' }}>
+                      {currentUser.course}
+                    </span>
+                  )}
                   <button
                     onClick={handleLogout}
                     title="Log Out"
@@ -173,45 +200,87 @@ export function Nav({ onAuthChange }) {
               )}
             </div>
 
-            {/* Mobile hamburger */}
-            <button
-              onClick={() => setMenuOpen(o => !o)}
-              aria-label={menuOpen ? 'Close menu' : 'Open menu'}
-              aria-expanded={menuOpen}
-              className="mobile-menu-btn"
-              style={{
-                display: 'none',
-                background: 'none',
-                border: 'none',
-                cursor: 'pointer',
-                padding: '6px',
-                borderRadius: '6px',
-                flexDirection: 'column',
-                gap: '5px',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              {/* Animated hamburger bars */}
-              <span style={{
-                display: 'block', width: 22, height: 2,
-                background: '#132f2a', borderRadius: 2,
-                transform: menuOpen ? 'rotate(45deg) translate(5px, 5px)' : 'none',
-                transition: 'transform 0.25s',
-              }} />
-              <span style={{
-                display: 'block', width: 22, height: 2,
-                background: '#132f2a', borderRadius: 2,
-                opacity: menuOpen ? 0 : 1,
-                transition: 'opacity 0.2s',
-              }} />
-              <span style={{
-                display: 'block', width: 22, height: 2,
-                background: '#132f2a', borderRadius: 2,
-                transform: menuOpen ? 'rotate(-45deg) translate(5px, -5px)' : 'none',
-                transition: 'transform 0.25s',
-              }} />
-            </button>
+            {/* Mobile Header Actions: Avatar/Sign In + Hamburger */}
+            <div className="mobile-nav-actions" style={{ display: 'none', alignItems: 'center', gap: 10 }}>
+              {currentUser ? (
+                <div
+                  onClick={() => setMenuOpen(o => !o)}
+                  style={{
+                    width: 32,
+                    height: 32,
+                    borderRadius: '50%',
+                    background: '#132f2a',
+                    color: '#d7ff75',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontWeight: 800,
+                    fontSize: 13,
+                    cursor: 'pointer',
+                    border: '1.5px solid #24685e',
+                  }}
+                  title={currentUser.name || 'User'}
+                >
+                  {currentUser.name ? currentUser.name.charAt(0).toUpperCase() : 'U'}
+                </div>
+              ) : (
+                <button
+                  onClick={() => setAuthModalOpen(true)}
+                  style={{
+                    padding: '6px 14px',
+                    borderRadius: '16px',
+                    border: '1px solid #132f2a',
+                    background: '#132f2a',
+                    color: '#fff',
+                    fontWeight: 700,
+                    fontSize: '11px',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Sign In
+                </button>
+              )}
+
+              {/* Mobile hamburger button */}
+              <button
+                onClick={() => setMenuOpen(o => !o)}
+                aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+                aria-expanded={menuOpen}
+                className="mobile-menu-btn"
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: '6px',
+                  borderRadius: '6px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '5px',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                {/* Animated hamburger bars */}
+                <span style={{
+                  display: 'block', width: 22, height: 2,
+                  background: '#132f2a', borderRadius: 2,
+                  transform: menuOpen ? 'rotate(45deg) translate(5px, 5px)' : 'none',
+                  transition: 'transform 0.25s',
+                }} />
+                <span style={{
+                  display: 'block', width: 22, height: 2,
+                  background: '#132f2a', borderRadius: 2,
+                  opacity: menuOpen ? 0 : 1,
+                  transition: 'opacity 0.2s',
+                }} />
+                <span style={{
+                  display: 'block', width: 22, height: 2,
+                  background: '#132f2a', borderRadius: 2,
+                  transform: menuOpen ? 'rotate(-45deg) translate(5px, -5px)' : 'none',
+                  transition: 'transform 0.25s',
+                }} />
+              </button>
+            </div>
           </nav>
         </div>
       </header>
@@ -224,8 +293,9 @@ export function Nav({ onAuthChange }) {
             onClick={() => setMenuOpen(false)}
             style={{
               position: 'fixed', inset: 0,
-              background: 'rgba(0,0,0,0.35)',
+              background: 'rgba(0,0,0,0.45)',
               zIndex: 98,
+              backdropFilter: 'blur(2px)',
             }}
           />
           {/* Drawer */}
@@ -235,15 +305,127 @@ export function Nav({ onAuthChange }) {
               top: 68,
               left: 0,
               right: 0,
+              maxHeight: 'calc(100vh - 72px)',
+              overflowY: 'auto',
               zIndex: 99,
               background: '#fff',
-              borderBottom: '2px solid #e8622a',
-              padding: '16px 24px 24px',
-              boxShadow: '0 8px 32px rgba(20,30,20,0.14)',
+              borderBottom: '3px solid #e8622a',
+              padding: '20px 24px 30px',
+              boxShadow: '0 12px 40px rgba(20,30,20,0.2)',
               animation: 'slideDown 0.22s ease',
             }}
           >
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {/* User Profile Card / Login Section in Mobile Menu */}
+            <div style={{
+              background: '#f4f7f5',
+              border: '1px solid #d5dfd9',
+              borderRadius: 14,
+              padding: '14px 16px',
+              marginBottom: 18,
+            }}>
+              {currentUser ? (
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <div style={{
+                        width: 38,
+                        height: 38,
+                        borderRadius: '50%',
+                        background: '#132f2a',
+                        color: '#d7ff75',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontWeight: 800,
+                        fontSize: 15,
+                      }}>
+                        {currentUser.name ? currentUser.name.charAt(0).toUpperCase() : 'U'}
+                      </div>
+                      <div>
+                        <div style={{ fontWeight: 800, fontSize: 14, color: '#132f2a' }}>
+                          {currentUser.name || 'Student'}
+                        </div>
+                        <div style={{ fontSize: 11, color: '#60706a', fontWeight: 600 }}>
+                          {currentUser.email || 'Logged in'}
+                        </div>
+                        {currentUser.course && (
+                          <div style={{ marginTop: '4px', display: 'inline-block', fontSize: '10px', fontWeight: 800, padding: '2px 6px', borderRadius: '4px', background: '#24685e', color: '#fff' }}>
+                            {currentUser.course}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <span style={{
+                      fontSize: 10,
+                      fontWeight: 800,
+                      padding: '3px 8px',
+                      borderRadius: 10,
+                      background: currentUser.role === 'Admin' ? 'rgba(215,255,117,0.3)' : 'rgba(36,104,94,0.12)',
+                      color: currentUser.role === 'Admin' ? '#132f2a' : '#24685e',
+                      border: '1px solid rgba(36,104,94,0.2)',
+                    }}>
+                      {currentUser.role || 'Student'}
+                    </span>
+                  </div>
+
+                  {/* Mobile Logout Button */}
+                  <button
+                    onClick={() => {
+                      handleLogout()
+                      setMenuOpen(false)
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '9px 14px',
+                      borderRadius: 8,
+                      border: '1px solid rgba(232,98,42,0.3)',
+                      background: 'rgba(232,98,42,0.1)',
+                      color: '#c94d1b',
+                      fontWeight: 800,
+                      fontSize: 13,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 6,
+                      transition: 'all 0.15s',
+                    }}
+                  >
+                    <span>🚪</span>
+                    <span>Log Out</span>
+                  </button>
+                </div>
+              ) : (
+                <div style={{ textAlign: 'center' }}>
+                  <p style={{ fontSize: 12, color: '#60706a', margin: '0 0 10px' }}>
+                    Track your roadmap progress & placement readiness
+                  </p>
+                  <button
+                    onClick={() => {
+                      setMenuOpen(false)
+                      setAuthModalOpen(true)
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '10px 16px',
+                      borderRadius: 10,
+                      border: 'none',
+                      background: '#132f2a',
+                      color: '#d7ff75',
+                      fontWeight: 800,
+                      fontSize: 13,
+                      cursor: 'pointer',
+                      boxShadow: '0 4px 12px rgba(19,47,42,0.2)',
+                    }}
+                  >
+                    Sign In / Register
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Navigation Links */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
               {NAV_LINKS.map(link =>
                 link.type === 'route' ? (
                   <Link
@@ -253,14 +435,17 @@ export function Nav({ onAuthChange }) {
                     style={{
                       color: '#132f2a',
                       textDecoration: 'none',
-                      fontSize: 17,
+                      fontSize: 16,
                       fontWeight: 700,
-                      padding: '13px 0',
+                      padding: '12px 6px',
                       borderBottom: '1px solid #f0ede6',
-                      display: 'block',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
                     }}
                   >
-                    {link.label}
+                    <span>{link.label}</span>
+                    <span style={{ color: '#a0b0aa', fontSize: 14 }}>→</span>
                   </Link>
                 ) : (
                   <a
@@ -270,33 +455,62 @@ export function Nav({ onAuthChange }) {
                     style={{
                       color: '#132f2a',
                       textDecoration: 'none',
-                      fontSize: 17,
+                      fontSize: 16,
                       fontWeight: 700,
-                      padding: '13px 0',
+                      padding: '12px 6px',
                       borderBottom: '1px solid #f0ede6',
-                      display: 'block',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
                     }}
                   >
-                    {link.label}
+                    <span>{link.label}</span>
+                    <span style={{ color: '#a0b0aa', fontSize: 14 }}>→</span>
                   </a>
                 )
               )}
+
               {/* Dashboard link in mobile menu */}
               {currentUser && (
                 <Link
                   to="/dashboard"
                   onClick={() => setMenuOpen(false)}
                   style={{
-                    color: '#e8622a',
+                    color: '#132f2a',
                     textDecoration: 'none',
-                    fontSize: 17,
+                    fontSize: 16,
                     fontWeight: 700,
-                    padding: '13px 0',
+                    padding: '12px 6px',
                     borderBottom: '1px solid #f0ede6',
-                    display: 'block',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
                   }}
                 >
-                  Dashboard
+                  <span>Dashboard</span>
+                  <span style={{ color: '#a0b0aa', fontSize: 14 }}>→</span>
+                </Link>
+              )}
+
+              {/* Admin Panel link in mobile menu */}
+              {currentUser?.role === 'Admin' && (
+                <Link
+                  to="/admin/dashboard"
+                  onClick={() => setMenuOpen(false)}
+                  style={{
+                    color: '#132f2a',
+                    textDecoration: 'none',
+                    fontSize: 16,
+                    fontWeight: 700,
+                    padding: '12px 6px',
+                    borderBottom: '1px solid #f0ede6',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                  }}
+                >
+                  <span>Admin Panel</span>
+                  <span style={{ color: '#a0b0aa', fontSize: 14 }}>→</span>
                 </Link>
               )}
             </div>
@@ -310,15 +524,15 @@ export function Nav({ onAuthChange }) {
           to   { opacity: 1; transform: translateY(0); }
         }
         .nav-link:hover { color: #e8622a !important; }
-        /* Show desktop links, hide mobile button on ≥768px */
+        /* Show desktop links, hide mobile actions on ≥768px */
         @media (min-width: 768px) {
           .desktop-nav { display: flex !important; }
-          .mobile-menu-btn { display: none !important; }
+          .mobile-nav-actions { display: none !important; }
         }
-        /* Hide desktop links, show mobile button on <768px */
+        /* Hide desktop links, show mobile actions on <768px */
         @media (max-width: 767px) {
           .desktop-nav { display: none !important; }
-          .mobile-menu-btn { display: flex !important; }
+          .mobile-nav-actions { display: flex !important; }
         }
       `}</style>
     </>
